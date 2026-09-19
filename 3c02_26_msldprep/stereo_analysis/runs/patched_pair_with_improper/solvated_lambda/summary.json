@@ -1,0 +1,93 @@
+{
+  "conditions": {
+    "water_model": "TIP3P",
+    "water_molecules": 258,
+    "box_nm": 2.0,
+    "cutoff_nm": 0.9,
+    "ensemble": "NVT",
+    "temperature_K": 300.0,
+    "timestep_fs": 1.0,
+    "equilibration_steps_at_meso_endpoint": 5000,
+    "cycles": 5000,
+    "steps_per_cycle": 10,
+    "lambda_states": [
+      0.0,
+      0.1,
+      0.2,
+      0.30000000000000004,
+      0.4,
+      0.5,
+      0.6000000000000001,
+      0.7000000000000001,
+      0.8,
+      0.9,
+      1.0
+    ],
+    "sampler": "bias-updated all-state Gibbs"
+  },
+  "lambda_sampling": {
+    "state_counts": [
+      229,
+      404,
+      545,
+      599,
+      577,
+      522,
+      505,
+      470,
+      432,
+      386,
+      331
+    ],
+    "states_visited": 11,
+    "transitions": 2450,
+    "endpoint_alternations": 16,
+    "final_log_weights": [
+      -37.95454545454397,
+      24.232954545454675,
+      25.951704545454543,
+      28.295454545454717,
+      34.85795454545494,
+      39.07670454545478,
+      32.04545454545453,
+      19.389204545454927,
+      -2.954545454545845,
+      -38.89204545454504,
+      -124.04829545454824
+    ],
+    "final_bias_increment": 0.15625,
+    "all_states_visited": true,
+    "first_cycle_energy_span_kj_mol": 743.0728924712166,
+    "last_cycle_energy_span_kj_mol": 1405.6145275843155
+  },
+  "stereochemistry": {
+    "meso": {
+      "expected_sign": -1,
+      "sign_flip_samples": 0,
+      "configuration_retained": true,
+      "signed_volume_nm3_min": -0.0030645241718791493,
+      "signed_volume_nm3_max": -0.0016625329927099184,
+      "minimum_absolute_volume_nm3": 0.0016625329927099184,
+      "improper_deg_min": 22.85671329166759,
+      "improper_deg_max": 40.30155568364419
+    },
+    "threo": {
+      "expected_sign": 1,
+      "sign_flip_samples": 0,
+      "configuration_retained": true,
+      "signed_volume_nm3_min": 0.001655751755385603,
+      "signed_volume_nm3_max": 0.0031069271715171197,
+      "minimum_absolute_volume_nm3": 0.001655751755385603,
+      "improper_deg_min": 18.988764124535987,
+      "improper_deg_max": 45.179036844347635
+    },
+    "separated_throughout": true
+  },
+  "outputs": {
+    "timeseries": "lambda_stereo.csv",
+    "trajectory": "trajectory.dcd",
+    "initial_structure": "solvated_initial.pdb",
+    "final_structure": "solvated_final.pdb",
+    "system": "solvated_system.xml"
+  }
+}

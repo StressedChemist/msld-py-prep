@@ -1,0 +1,66 @@
+{
+  "conditions": {
+    "temperature_K": 300.0,
+    "timestep_fs": 1.0,
+    "friction_per_ps": 1.0,
+    "nonbonded_method": "NoCutoff (vacuum smoke test)",
+    "constraints": "HBonds",
+    "platform": "CPU, one thread",
+    "improper_force_constant_kcal_mol_rad2": 50.0,
+    "improper_target_degrees": 32.6
+  },
+  "endpoints": {
+    "meso": {
+      "lambda": [
+        1.0,
+        0.0
+      ],
+      "steps": 100000,
+      "duration_ps": 100.0,
+      "samples": 101,
+      "expected_signed_volume_sign": -1,
+      "sign_flip_samples": 0,
+      "configuration_retained": true,
+      "signed_volume_nm3": {
+        "initial": -0.002496946866737699,
+        "minimum": -0.002862346905609569,
+        "maximum": -0.001883678518116435,
+        "mean": -0.002471008009925372,
+        "minimum_absolute": 0.001883678518116435
+      },
+      "improper_degrees": {
+        "initial": 32.95926149508566,
+        "minimum": 27.006175870954262,
+        "maximum": 37.55530566604203,
+        "mean": 32.73507814087594
+      },
+      "trajectory": "endpoint_meso.csv"
+    },
+    "threo": {
+      "lambda": [
+        0.0,
+        1.0
+      ],
+      "steps": 100000,
+      "duration_ps": 100.0,
+      "samples": 101,
+      "expected_signed_volume_sign": 1,
+      "sign_flip_samples": 0,
+      "configuration_retained": true,
+      "signed_volume_nm3": {
+        "initial": 0.002478557570745264,
+        "minimum": 0.0019805725318946853,
+        "maximum": 0.002869784915985033,
+        "mean": 0.0024592365783493763,
+        "minimum_absolute": 0.0019805725318946853
+      },
+      "improper_degrees": {
+        "initial": 32.45018845160786,
+        "minimum": 25.739565664213394,
+        "maximum": 37.058596609472076,
+        "mean": 32.24440482094339
+      },
+      "trajectory": "endpoint_threo.csv"
+    }
+  }
+}

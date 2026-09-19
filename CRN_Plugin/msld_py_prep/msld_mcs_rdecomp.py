@@ -42,6 +42,30 @@ def load_sdf(fn):
     suppl = Chem.SDMolSupplier(fn,removeHs=False)
     return [x for x in suppl]
 
+def assign_and_validate_stereochemistry(mol, source="molecule"):
+    """Assign input stereochemistry and fail closed on ambiguous centres.
+
+    Three-dimensional SDF coordinates are treated as the stereochemical source
+    of truth.  Two-dimensional inputs retain their wedge/hash-derived tags.
+    MCS matching cannot distinguish stereoisomers when these tags are absent,
+    so potentially chiral but unassigned atoms are rejected here.
+    """
+    if mol.GetNumConformers() and mol.GetConformer().Is3D():
+        Chem.AssignAtomChiralTagsFromStructure(
+            mol, confId=0, replaceExistingTags=True
+        )
+    Chem.AssignStereochemistry(mol, cleanIt=True, force=True)
+    centres = Chem.FindMolChiralCenters(
+        mol, includeUnassigned=True, includeCIP=True
+    )
+    unassigned = [atom_idx for atom_idx, label in centres if label == "?"]
+    if unassigned:
+        raise ValueError(
+            "%s has unassigned stereocentres at zero-based atom indices %s"
+            % (source, unassigned)
+        )
+    return centres
+
 def load_mol2(fn):
     """
     Load mol2 specified file fn into rdkit and returns mol object.
@@ -759,6 +783,13 @@ def MCSS_RDecomp(mol_list,mcsout="MCS_for_MSLD.txt"):
     
     # Check if load was successful
     check_rdkit_loading(mols) 
+
+    # Perceive stereochemistry before isotope labels or 2D depiction are added.
+    # The subsequent MCS must not silently merge stereoisomers into one core.
+    for sdfname, mol in zip(sdfnames, mols):
+        centres = assign_and_validate_stereochemistry(mol, sdfname)
+        if centres:
+            print("Assigned stereochemistry for %s: %s" % (sdfname, centres))
    
     # Assign atom types to each atom of each RDKit molecule object
     # RDKit uses "Isotope Labeling" for this
@@ -775,6 +806,7 @@ def MCSS_RDecomp(mol_list,mcsout="MCS_for_MSLD.txt"):
                               atomCompare=rdFMCS.AtomCompare.CompareIsotopes,
                               ringMatchesRingOnly=False,
                               completeRingsOnly=False,
+                              matchChiralTag=True,
                               timeout=5,
                               verbose=True
                               )
@@ -785,9 +817,11 @@ def MCSS_RDecomp(mol_list,mcsout="MCS_for_MSLD.txt"):
     patt = MaxComSubst.smartsString
     print(patt)
     print("\nMCS search Smarts String Result is:\n%s\n" % patt)
-    patt = Chem.MolFromSmarts(patt)
+    # Keep RDKit's query molecule directly.  A SMARTS round trip can discard
+    # query details needed for chirality-aware atom mapping.
+    patt = MaxComSubst.queryMol
     # Get indices for each atom that match MCS pattern
-    MatchIndices = [mol.GetSubstructMatch(patt) for mol in mols]
+    MatchIndices = [mol.GetSubstructMatch(patt, useChirality=True) for mol in mols]
 
     # Check to see if number of indices is the same for each molecule
     check_MCS_results(MatchIndices)
@@ -823,12 +857,18 @@ def MCSS_RDecomp(mol_list,mcsout="MCS_for_MSLD.txt"):
     params.onlyMatchAtRGroups = True
     params.labels = rdRGroupDecomposition.RGroupLabels.AtomIndexLabels
     params.rgrouplabelling = rdRGroupDecomposition.RGroupLabelling.Isotope
+    params.substructMatchParams.useChirality = True
     groups, unmatched = rdRGroupDecomposition.RGroupDecompose([patt],mols,asSmiles=False,asRows=False,options=params)
    
     print("R Group Decomposition complete") 
     # Check if any molecules were unmatched
     if not groups:
         print("R Group Decomposition Returned the following results:\n%s" % groups)
+        if not unmatched:
+            raise ValueError(
+                "R-group decomposition produced no variable groups; refusing "
+                "a possible stereochemical collapse into the common core"
+            )
     if unmatched:
         print("One or more molecules were unmatched during R group decomposition step.\nDefaulting to custom R decomposition. No html or xlsx file will be created. This will most likely fail for highly symmetric cores\nbecause it assumes that the core atom indices are arranged such that the indices per molecule correspond to the same atom across all molecules")
         r_group_decomposition(mols[0],MatchIndices[0], patt)

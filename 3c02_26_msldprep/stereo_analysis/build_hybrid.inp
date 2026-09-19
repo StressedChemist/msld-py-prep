@@ -1,0 +1,51 @@
+* Build the minimal meso-erythritol/threitol dual-topology ligand
+*
+
+bomblev -2
+
+open read card unit 10 name ../../../../toppar/top_all36_cgenff.rtf
+read rtf card unit 10
+open read card unit 20 name ../../../../toppar/par_all36_cgenff.prm
+read para card unit 20 flex
+
+read rtf append card name build/core.rtf
+read param flex append card name build/full_ligand.prm
+read rtf append card name build/site1_sub1_pres.rtf
+read rtf append card name build/site1_sub2_pres.rtf
+
+read sequ pdb name build/core.pdb
+generate LIG setup
+read coor pdb resid name build/core.pdb
+
+patch p1_1 LIG 1 setup
+read coor pdb resid name build/site1_sub1_frag.pdb
+ic param
+ic build
+
+patch p1_2 LIG 1 setup
+read coor pdb resid name build/site1_sub2_frag.pdb
+ic param
+ic build
+
+auto angle dihe
+
+define meso select atom LIG 1 O015 .or. atom LIG 1 H016 .or. -
+                   atom LIG 1 H017 .or. atom LIG 1 C018 end
+define threo select atom LIG 1 O019 .or. atom LIG 1 H020 .or. -
+                    atom LIG 1 H021 .or. atom LIG 1 C022 end
+
+! Remove automatically generated bonded terms spanning both alternatives.
+dele connectivity sele meso show end sele threo show end
+
+print coor sele .not. init end
+write psf card name hybrid.psf
+* meso-erythritol/threitol dual topology
+*
+write coor pdb card name hybrid.pdb
+* meso-erythritol/threitol dual-topology coordinates
+*
+write coor card name hybrid.crd
+* meso-erythritol/threitol dual-topology coordinates
+*
+
+stop
