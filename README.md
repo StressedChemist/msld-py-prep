@@ -32,6 +32,15 @@ The following are some other considerations:
 # Usage
 Please see the examples directory for a detailed tutorial.
 
+## Stereoisomer-aware preparation
+
+The `stereochemistry-support` branch adds chirality-aware MCS and R-group
+matching so that tetrahedral stereoisomers are not silently collapsed into a
+single common core. A worked meso-erythritol/threitol example, a general
+small-molecule workflow, signed-improper guidance, and endpoint/solvated
+validation criteria are documented in
+[`3c02_26_msldprep/stereo_analysis/README.md`](3c02_26_msldprep/stereo_analysis/README.md).
+
 # Citation
 Please cite the following reference:
 "Optimizing Multisite λ-Dynamics Throughput with Charge Renormalization"
