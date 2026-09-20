@@ -1,0 +1,71 @@
+{
+  "coordinate_frames": 2000,
+  "lambda_frames": 2000,
+  "maximum_lambda_sum_deviation": 0.0,
+  "lambda_motion": {
+    "dominant_state_transitions": 83,
+    "endpoint_alternations_lambda_0.1_0.9": 47,
+    "meso_endpoint_frames_lambda_ge_0.9": 906,
+    "threo_endpoint_frames_lambda_le_0.1": 173,
+    "lambda_meso_range": [
+      0.0,
+      1.0
+    ]
+  },
+  "lambda_motion_first_half": {
+    "dominant_state_transitions": 33,
+    "endpoint_alternations_lambda_0.1_0.9": 15,
+    "meso_endpoint_frames_lambda_ge_0.9": 461,
+    "threo_endpoint_frames_lambda_le_0.1": 77,
+    "lambda_meso_range": [
+      0.0,
+      1.0
+    ]
+  },
+  "lambda_motion_second_half": {
+    "dominant_state_transitions": 50,
+    "endpoint_alternations_lambda_0.1_0.9": 32,
+    "meso_endpoint_frames_lambda_ge_0.9": 445,
+    "threo_endpoint_frames_lambda_le_0.1": 96,
+    "lambda_meso_range": [
+      0.0,
+      1.0
+    ]
+  },
+  "lambda_motion_persisted": true,
+  "meso_signed_volume_nm3": [
+    -0.0029960758984088898,
+    -0.001838202471844852
+  ],
+  "threo_signed_volume_nm3": [
+    0.0018688179552555084,
+    0.002947311382740736
+  ],
+  "meso_sign_flips": 0,
+  "threo_sign_flips": 0,
+  "minimum_required_abs_signed_volume_nm3": 0.001,
+  "separated_throughout": true,
+  "working_construction": true,
+  "conditions": {
+    "engine": "CHARMM",
+    "lambda_method": "continuous theta/MSLD F2SI",
+    "solvent": "TIP3P",
+    "water_molecules": 258,
+    "box_angstrom": 20.0,
+    "steps": 20000,
+    "timestep_fs": 1.0,
+    "save_frequency": 10,
+    "temperature_K": 300.0,
+    "meso_fixed_bias_kcal_mol": 2.2,
+    "threo_fixed_bias_kcal_mol": 0.0,
+    "lambda_temperature_K": 3000.0,
+    "lambda_mass": 5.0,
+    "lambda_friction": 5.0,
+    "ensemble": "NVT",
+    "nonbonded_method": "periodic cutoff with force switching",
+    "cutoff_angstrom": 8.0,
+    "engine_version": "(CHARMM) - Developmental Version 50a2   February 15, 2025",
+    "engine_commit": "Git commit ID 533856079",
+    "random_seed": 34117
+  }
+}

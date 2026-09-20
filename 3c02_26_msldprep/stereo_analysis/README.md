@@ -317,6 +317,36 @@ The complete statistics are in
 `runs/patched_pair_with_improper/solvated_lambda/summary.json`, the per-cycle
 trace is `lambda_stereo.csv`, and the coordinates are in `trajectory.dcd`.
 
+## Conventional CHARMM continuous-MSλD validation
+
+The same hybrid was independently tested with CHARMM Developmental 50a2's
+native BLOCK/QLDM implementation rather than discrete LaDyBUGS Gibbs updates.
+The test used an F2SI two-state continuous lambda coordinate, `EXCL 2 3`, and
+`RMLA BOND THET IMPR`, so the signed endpoint impropers remained fully active
+throughout lambda propagation. The molecular system stayed at 300 K in the
+same 2.0 nm box of 258 TIP3P waters.
+
+For this construction stress test, the fictitious lambda thermostat was raised
+to 3000 K and a +2.2 kcal/mol fixed meso bias was applied. These choices force
+repeated endpoint traversal; they are not proposed production bias or
+temperature settings and cannot be used to estimate a free-energy difference.
+
+| Metric | Full 20 ps | First 10 ps | Second 10 ps |
+| --- | ---: | ---: | ---: |
+| Saved coordinate/lambda frames | 2,000 | 1,000 | 1,000 |
+| Lambda range | 0.0–1.0 | 0.0–1.0 | 0.0–1.0 |
+| Crossings of lambda = 0.5 | 83 | 33 | 50 |
+| Alternations between lambda ≤ 0.1 and ≥ 0.9 | 47 | 15 | 32 |
+| Meso endpoint frames, lambda ≥ 0.9 | 906 | 461 | 445 |
+| Threo endpoint frames, lambda ≤ 0.1 | 173 | 77 | 96 |
+
+Across all 2,000 frames, meso C3 remained between -0.002996 and
+-0.001838 nm³ and threo C3 remained between +0.001869 and +0.002947 nm³.
+Neither endpoint had a sign flip. Lambda motion and endpoint visits persisted
+in both halves of the trajectory, so this native CHARMM run also passes the
+construction criterion. The compact trace, plot, and machine-readable summary
+are in `runs/patched_pair_with_improper/charmm_msld_validation`.
+
 ## Reproduction
 
 From this `stereo_analysis` directory, select the Python interpreter that has
@@ -333,5 +363,29 @@ export MSLD_PYTHON=python
 "$MSLD_PYTHON" solvated_lambda_test.py runs/patched_pair_with_improper --output-name solvated_lambda --box-nm 2.0 --minimization-iterations 500 --equilibration-steps 5000 --cycles 5000 --steps-per-cycle 10 --timestep-fs 1.0 --initial-bias-increment 5.0 --minimum-bias-increment 0.01 --flatness-interval 250 --flatness-fraction 0.6 --progress-interval 100 --trajectory-interval 500 --threads 8
 "$MSLD_PYTHON" plot_solvated_lambda.py runs/patched_pair_with_improper/solvated_lambda
 ```
+
+For the native CHARMM test, first make a CHARMM executable available on
+`PATH`. On the test cluster that was done with `module load
+charmm/charmm/c50a2`; other installations should use their local environment.
+Some MPI builds may also require site-specific runtime settings. Then run:
+
+```bash
+"$MSLD_PYTHON" charmm_msld_test.py \
+  runs/patched_pair_with_improper \
+  --output-name charmm_msld_validation_reproduction \
+  --charmm "$(command -v charmm)" \
+  --steps 20000 --save-frequency 10 --threads 8 \
+  --meso-bias 2.2 --lambda-temperature 3000 --require-pass
+
+"$MSLD_PYTHON" plot_solvated_lambda.py \
+  runs/patched_pair_with_improper/charmm_msld_validation_reproduction
+```
+
+`charmm_msld_test.py` refuses to overwrite an existing result directory. It
+also requires equal coordinate and lambda frame counts, reports motion in each
+half of the trajectory, and sets `working_construction` only when lambda
+alternations persist and both signed volumes retain their expected signs with
+an absolute-volume margin of at least 0.001 nm³. `--require-pass` makes a failed
+acceptance test return a nonzero status.
 
 The preparation runners deliberately refuse to overwrite an existing result.

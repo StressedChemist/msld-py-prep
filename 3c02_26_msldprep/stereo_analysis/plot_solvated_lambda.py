@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot lambda and signed-volume traces from solvated_lambda_test.py."""
+"""Plot lambda and signed-volume traces from either solvated test runner."""
 
 from __future__ import annotations
 
