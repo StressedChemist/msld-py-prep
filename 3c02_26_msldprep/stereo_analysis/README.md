@@ -77,6 +77,11 @@ Run from a working directory containing `mol_list.txt` and the ligand files.
 Set these paths for the local installation rather than copying the absolute
 paths used for this example:
 
+The default `msld_py_prep.py` entry point on this branch now calls
+`MCSS_RDecomp`, so its normal two-pass workflow is chirality-aware. Configure
+the system variables at the top of that file before using it. To run only the
+MCS/decomposition stage explicitly, use:
+
 ```bash
 export MSLD_PREP_ROOT=/path/to/msld-py-prep
 export MSLD_PYTHON=python

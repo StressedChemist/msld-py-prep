@@ -123,13 +123,14 @@ def get_current_atom_types():
 
 def update_atomtypes(attypes):
     current_ats = get_current_atom_types()
-    
-    # Update CGenFF_atomtypes for any new atom types 
-    current_ats.extend(attypes)
-    current_ats = list(set(current_ats))
+
+    # Preserve the existing encoding. Rebuilding this list through a set can
+    # assign a different isotope code to the same atom type each time another
+    # ligand is read, which corrupts the isotope-based MCS comparison.
+    for atomtype in attypes:
+        if atomtype not in current_ats:
+            current_ats.append(atomtype)
     attypesPath = os.path.dirname(__file__)
-    if os.path.exists(f"{attypesPath}/CGenFF_atomtypes.txt"):
-        os.remove(f"{attypesPath}/CGenFF_atomtypes.txt")
     with open(f"{attypesPath}/CGenFF_atomtypes.txt",'w') as f:
         f.write("\n".join(current_ats))
 
