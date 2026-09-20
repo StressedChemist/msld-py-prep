@@ -36,9 +36,11 @@ Please see the examples directory for a detailed tutorial.
 
 The `stereochemistry-support` branch adds chirality-aware MCS and R-group
 matching so that tetrahedral stereoisomers are not silently collapsed into a
-single common core. A worked meso-erythritol/threitol example, a general
-small-molecule workflow, signed-improper guidance, and endpoint/solvated
-validation criteria are documented in
+single common core. The preparation now writes a stereoisomer relationship
+report and a per-centre restraint audit, and it stops when a changing centre
+lacks a center-first CHARMM `IMPR` record with an active, non-planar parameter. A worked
+meso-erythritol/threitol example, a general small-molecule workflow,
+signed-improper guidance, and endpoint/solvated validation criteria are documented in
 [`3c02_26_msldprep/stereo_analysis/README.md`](3c02_26_msldprep/stereo_analysis/README.md).
 
 # Citation

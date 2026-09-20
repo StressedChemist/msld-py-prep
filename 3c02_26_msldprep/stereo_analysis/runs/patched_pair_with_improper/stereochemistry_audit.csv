@@ -1,0 +1,5 @@
+molecule,atom_index,atom_name,cip_label,in_mcs_core,local_environment_fully_in_core,configuration_changes,paired_with,centered_improper_count,centered_improper_records,improper_parameter_count,improper_force_constants,improper_targets_degrees,status
+meso_erythritol,2,C2,S,True,True,False,,0,,0,,,not_required
+meso_erythritol,4,C3,R,True,False,True,threitol,1,C3 C4 C2 O3,1,50.0,32.6,ready
+threitol,2,C2,S,True,True,False,,0,,0,,,not_required
+threitol,4,C3,S,True,False,True,meso_erythritol,1,C3 C2 C4 O3,1,50.0,32.6,ready

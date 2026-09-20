@@ -66,6 +66,392 @@ def assign_and_validate_stereochemistry(mol, source="molecule"):
         )
     return centres
 
+
+def read_improper_records(filename):
+    """Return four-atom CHARMM IMPR records from an RTF/stream file."""
+    records = []
+    with open(filename, "r") as handle:
+        for raw_line in handle:
+            fields = raw_line.split("!", 1)[0].split()
+            if len(fields) >= 5 and fields[0].upper() in ("IMPR", "IMPH"):
+                records.append(tuple(fields[1:5]))
+    return records
+
+
+def read_improper_parameters(filename):
+    """Return typed CHARMM improper parameters from a parameter file."""
+    records = []
+    in_impropers = False
+    section_headers = {
+        "ATOMS",
+        "BONDS",
+        "ANGLES",
+        "DIHEDRALS",
+        "NONBONDED",
+        "NBFIX",
+        "CMAP",
+        "END",
+        "RETURN",
+    }
+    with open(filename, "r") as handle:
+        for raw_line in handle:
+            fields = raw_line.split("!", 1)[0].split()
+            if not fields:
+                continue
+            keyword = fields[0].upper()
+            if keyword.startswith("IMPR"):
+                in_impropers = True
+                continue
+            if keyword in section_headers:
+                in_impropers = False
+                continue
+            if not in_impropers or len(fields) < 7:
+                continue
+            try:
+                force_constant = float(fields[4])
+                periodicity = float(fields[5])
+                target_degrees = float(fields[6])
+            except ValueError:
+                continue
+            records.append(
+                {
+                    "types": tuple(fields[:4]),
+                    "force_constant": force_constant,
+                    "periodicity": periodicity,
+                    "target_degrees": target_degrees,
+                }
+            )
+    return records
+
+
+def _is_nonplanar_improper(parameter, tolerance_degrees=5.0):
+    """Return whether an active improper target is separated from 0/180 degrees."""
+    target = ((parameter["target_degrees"] + 180.0) % 360.0) - 180.0
+    distance_from_planar = min(abs(target), abs(abs(target) - 180.0))
+    return parameter["force_constant"] > 0.0 and distance_from_planar > tolerance_degrees
+
+
+def _best_constitutional_mapping(first, second, first_names, second_names):
+    """Map equal-connectivity molecules, preferring stable matching atom names.
+
+    Returns ``None`` when the constitutions differ. Raises when molecular
+    symmetry leaves more than one equally plausible atom-name mapping, because
+    guessing could reverse the stereochemical classification.
+    """
+    if (
+        first.GetNumAtoms() != second.GetNumAtoms()
+        or first.GetNumBonds() != second.GetNumBonds()
+    ):
+        return None
+
+    matches = second.GetSubstructMatches(
+        first, useChirality=False, uniquify=False, maxMatches=10000
+    )
+    full_matches = [match for match in matches if len(match) == first.GetNumAtoms()]
+    if not full_matches:
+        return None
+
+    scores = [
+        sum(first_names[index] == second_names[mapped] for index, mapped in enumerate(match))
+        for match in full_matches
+    ]
+    best_score = max(scores)
+    best_matches = {
+        tuple(match)
+        for match, score in zip(full_matches, scores)
+        if score == best_score
+    }
+    if len(best_matches) != 1:
+        raise ValueError(
+            "constitutionally identical ligands have an ambiguous atom mapping; "
+            "use unique, stable atom names across stereoisomers"
+        )
+    return next(iter(best_matches))
+
+
+def write_stereochemistry_audit(
+    mols,
+    molnames,
+    atom_names,
+    centres_by_molecule,
+    mcs_indices,
+    topology_names,
+    atom_types=None,
+    parameter_names=None,
+    audit_output="stereochemistry_audit.csv",
+    pairs_output="stereoisomer_pairs.csv",
+    require_impropers=True,
+):
+    """Write stereochemical MCS/restraint reports and reject unsafe pairs.
+
+    Pair classification is limited to constitutionally identical molecules.
+    Stable atom names select a unique graph mapping, avoiding silent guesses in
+    symmetric molecules. ``enantiomer_candidate`` remains a screening label;
+    a symmetry-aware mirror-image test is needed for a formal classification.
+    """
+    for molecule, names, molecule_name in zip(mols, atom_names, molnames):
+        if len(names) != molecule.GetNumAtoms():
+            raise ValueError(
+                "%s has %d structure atoms but %d topology atom names"
+                % (molecule_name, molecule.GetNumAtoms(), len(names))
+            )
+        if len(set(names)) != len(names):
+            raise ValueError(
+                "%s has duplicate topology atom names; unique names are required "
+                "for stereochemical mapping" % molecule_name
+            )
+
+    centre_labels = [dict(centres) for centres in centres_by_molecule]
+    changed_centres = [set() for _ in mols]
+    partners = [dict() for _ in mols]
+    pair_rows = []
+    mapping_errors = []
+    if atom_types is not None and len(atom_types) != len(mols):
+        raise ValueError("atom_types must contain one list per molecule")
+    if parameter_names is not None and len(parameter_names) != len(mols):
+        raise ValueError("parameter_names must contain one file per molecule")
+
+    for first_index in range(len(mols)):
+        for second_index in range(first_index + 1, len(mols)):
+            try:
+                mapping = _best_constitutional_mapping(
+                    mols[first_index],
+                    mols[second_index],
+                    atom_names[first_index],
+                    atom_names[second_index],
+                )
+            except ValueError as error:
+                mapping_errors.append(
+                    "%s/%s: %s"
+                    % (molnames[first_index], molnames[second_index], error)
+                )
+                continue
+            if mapping is None:
+                continue
+
+            first_centres = centre_labels[first_index]
+            second_centres = centre_labels[second_index]
+            mapped_second_centres = {
+                source: second_centres[mapping[source]]
+                for source in first_centres
+                if mapping[source] in second_centres
+            }
+            if len(mapped_second_centres) != len(first_centres) or len(
+                mapped_second_centres
+            ) != len(second_centres):
+                mapping_errors.append(
+                    "%s/%s: mapped stereocentre sets differ"
+                    % (molnames[first_index], molnames[second_index])
+                )
+                continue
+
+            inverted = [
+                source
+                for source, label in first_centres.items()
+                if mapped_second_centres[source] != label
+            ]
+            retained = [
+                source
+                for source, label in first_centres.items()
+                if mapped_second_centres[source] == label
+            ]
+            if not first_centres:
+                relationship = "same_connectivity_achiral"
+            elif not inverted:
+                relationship = "same_stereoisomer"
+            elif not retained:
+                relationship = "enantiomer_candidate"
+            else:
+                relationship = "diastereomers"
+
+            inverted_first_names = [
+                atom_names[first_index][source] for source in inverted
+            ]
+            inverted_second_names = [
+                atom_names[second_index][mapping[source]] for source in inverted
+            ]
+            retained_names = [atom_names[first_index][source] for source in retained]
+            pair_rows.append(
+                {
+                    "molecule_1": molnames[first_index],
+                    "molecule_2": molnames[second_index],
+                    "relationship": relationship,
+                    "retained_centres": ";".join(retained_names),
+                    "inverted_centres_molecule_1": ";".join(inverted_first_names),
+                    "inverted_centres_molecule_2": ";".join(inverted_second_names),
+                }
+            )
+
+            for source in inverted:
+                target = mapping[source]
+                changed_centres[first_index].add(source)
+                changed_centres[second_index].add(target)
+                partners[first_index].setdefault(source, set()).add(
+                    molnames[second_index]
+                )
+                partners[second_index].setdefault(target, set()).add(
+                    molnames[first_index]
+                )
+
+    pair_fields = (
+        "molecule_1",
+        "molecule_2",
+        "relationship",
+        "retained_centres",
+        "inverted_centres_molecule_1",
+        "inverted_centres_molecule_2",
+    )
+    with open(pairs_output, "w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=pair_fields)
+        writer.writeheader()
+        writer.writerows(pair_rows)
+
+    audit_rows = []
+    unsafe = []
+    for mol_index, centres in enumerate(centres_by_molecule):
+        core = set(mcs_indices[mol_index])
+        impropers = read_improper_records(topology_names[mol_index])
+        improper_parameters = (
+            read_improper_parameters(parameter_names[mol_index])
+            if parameter_names is not None
+            else []
+        )
+        type_by_name = (
+            dict(zip(atom_names[mol_index], atom_types[mol_index]))
+            if atom_types is not None
+            else {}
+        )
+        for atom_index, label in centres:
+            atom_name = atom_names[mol_index][atom_index]
+            centered_impropers = [record for record in impropers if record[0] == atom_name]
+            matching_parameters = []
+            if type_by_name:
+                for record in centered_impropers:
+                    try:
+                        record_types = tuple(type_by_name[name] for name in record)
+                    except KeyError:
+                        continue
+                    matching_parameters.extend(
+                        parameter
+                        for parameter in improper_parameters
+                        if parameter["types"] in (record_types, tuple(reversed(record_types)))
+                    )
+            valid_parameters = [
+                parameter
+                for parameter in matching_parameters
+                if _is_nonplanar_improper(parameter)
+            ]
+            local_atoms = {atom_index}
+            local_atoms.update(
+                neighbor.GetIdx()
+                for neighbor in mols[mol_index].GetAtomWithIdx(atom_index).GetNeighbors()
+            )
+            changes = atom_index in changed_centres[mol_index]
+            local_environment_in_core = local_atoms.issubset(core)
+            if not changes:
+                status = "not_required"
+            elif local_environment_in_core:
+                status = "unsafe_full_stereo_environment_in_core"
+                unsafe.append(
+                    "%s:%s remains fully in the MCS core"
+                    % (molnames[mol_index], atom_name)
+                )
+            elif not centered_impropers:
+                status = "missing_centered_improper"
+                if require_impropers:
+                    unsafe.append(
+                        "%s:%s has no center-first IMPR record"
+                        % (molnames[mol_index], atom_name)
+                    )
+            elif atom_types is None or parameter_names is None:
+                status = "improper_parameter_not_checked"
+                if require_impropers:
+                    unsafe.append(
+                        "%s:%s improper parameter was not checked"
+                        % (molnames[mol_index], atom_name)
+                    )
+            elif not matching_parameters:
+                status = "missing_improper_parameter"
+                if require_impropers:
+                    unsafe.append(
+                        "%s:%s has no matching improper parameter"
+                        % (molnames[mol_index], atom_name)
+                    )
+            elif len(matching_parameters) != 1:
+                status = "ambiguous_improper_parameters"
+                if require_impropers:
+                    unsafe.append(
+                        "%s:%s matches more than one improper parameter"
+                        % (molnames[mol_index], atom_name)
+                    )
+            elif not valid_parameters:
+                status = "inactive_or_planar_improper_parameter"
+                if require_impropers:
+                    unsafe.append(
+                        "%s:%s improper must have a positive force constant and "
+                        "a non-planar target" % (molnames[mol_index], atom_name)
+                    )
+            else:
+                status = "ready"
+
+            audit_rows.append(
+                {
+                    "molecule": molnames[mol_index],
+                    "atom_index": atom_index,
+                    "atom_name": atom_name,
+                    "cip_label": label,
+                    "in_mcs_core": atom_index in core,
+                    "local_environment_fully_in_core": local_environment_in_core,
+                    "configuration_changes": changes,
+                    "paired_with": ";".join(
+                        sorted(partners[mol_index].get(atom_index, set()))
+                    ),
+                    "centered_improper_count": len(centered_impropers),
+                    "centered_improper_records": ";".join(
+                        " ".join(record) for record in centered_impropers
+                    ),
+                    "improper_parameter_count": len(matching_parameters),
+                    "improper_force_constants": ";".join(
+                        str(parameter["force_constant"])
+                        for parameter in matching_parameters
+                    ),
+                    "improper_targets_degrees": ";".join(
+                        str(parameter["target_degrees"])
+                        for parameter in matching_parameters
+                    ),
+                    "status": status,
+                }
+            )
+
+    audit_fields = (
+        "molecule",
+        "atom_index",
+        "atom_name",
+        "cip_label",
+        "in_mcs_core",
+        "local_environment_fully_in_core",
+        "configuration_changes",
+        "paired_with",
+        "centered_improper_count",
+        "centered_improper_records",
+        "improper_parameter_count",
+        "improper_force_constants",
+        "improper_targets_degrees",
+        "status",
+    )
+    with open(audit_output, "w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=audit_fields)
+        writer.writeheader()
+        writer.writerows(audit_rows)
+
+    problems = mapping_errors + unsafe
+    if problems:
+        raise ValueError(
+            "stereochemistry audit failed; inspect %s and %s:\n- %s"
+            % (audit_output, pairs_output, "\n- ".join(problems))
+        )
+    return audit_rows, pair_rows
+
 def load_mol2(fn):
     """
     Load mol2 specified file fn into rdkit and returns mol object.
@@ -127,9 +513,13 @@ def update_atomtypes(attypes):
     # Preserve the existing encoding. Rebuilding this list through a set can
     # assign a different isotope code to the same atom type each time another
     # ligand is read, which corrupts the isotope-based MCS comparison.
+    changed = False
     for atomtype in attypes:
         if atomtype not in current_ats:
             current_ats.append(atomtype)
+            changed = True
+    if not changed:
+        return
     attypesPath = os.path.dirname(__file__)
     with open(f"{attypesPath}/CGenFF_atomtypes.txt",'w') as f:
         f.write("\n".join(current_ats))
@@ -765,7 +1155,11 @@ CORE
 
     return reflig
 
-def MCSS_RDecomp(mol_list,mcsout="MCS_for_MSLD.txt"):
+def MCSS_RDecomp(
+    mol_list,
+    mcsout="MCS_for_MSLD.txt",
+    require_stereo_impropers=True,
+):
     """
     Function takes in a list of ligands, identifies the common core and
     shows charge distribution of each common core atom across all ligands
@@ -787,8 +1181,10 @@ def MCSS_RDecomp(mol_list,mcsout="MCS_for_MSLD.txt"):
 
     # Perceive stereochemistry before isotope labels or 2D depiction are added.
     # The subsequent MCS must not silently merge stereoisomers into one core.
+    centres_by_molecule = []
     for sdfname, mol in zip(sdfnames, mols):
         centres = assign_and_validate_stereochemistry(mol, sdfname)
+        centres_by_molecule.append(centres)
         if centres:
             print("Assigned stereochemistry for %s: %s" % (sdfname, centres))
    
@@ -826,6 +1222,23 @@ def MCSS_RDecomp(mol_list,mcsout="MCS_for_MSLD.txt"):
 
     # Check to see if number of indices is the same for each molecule
     check_MCS_results(MatchIndices)
+
+    # Classify connectivity-identical stereoisomers and ensure that every
+    # changing centre has an endpoint-specific signed improper. Reports are
+    # written before an unsafe construction is rejected.
+    topology_names = [name.replace(".str", ".rtf") for name in rtfnames]
+    parameter_names = [name.replace(".str", ".prm") for name in rtfnames]
+    write_stereochemistry_audit(
+        mols,
+        molnames,
+        AtomNames,
+        centres_by_molecule,
+        MatchIndices,
+        topology_names,
+        atom_types=AtomTypes,
+        parameter_names=parameter_names,
+        require_impropers=require_stereo_impropers,
+    )
 
     # Rearrange partial charges and atom names based on core atom indices
     CoreCharges = []

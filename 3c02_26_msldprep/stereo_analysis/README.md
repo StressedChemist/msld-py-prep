@@ -91,15 +91,39 @@ export PYTHONPATH="$MSLD_PREP_ROOT${PYTHONPATH:+:$PYTHONPATH}"
   'from msld_mcs_rdecomp import MCSS_RDecomp; MCSS_RDecomp("mol_list.txt", "MCS_for_MSLD.txt")'
 ```
 
-The command writes `MCS_for_MSLD.txt`, `core_names.csv`, and
-`core_charges.csv`. The example `prepare_pair.py` shows how to connect this
-step to `MsldCRN` and `MsldPRM`; change its hard-coded `stems` list and input
-directory for another molecule set.
+The command writes `MCS_for_MSLD.txt`, `core_names.csv`, `core_charges.csv`,
+`stereoisomer_pairs.csv`, and `stereochemistry_audit.csv`. The example
+`prepare_pair.py` shows how to connect this step to `MsldCRN` and `MsldPRM`;
+change its hard-coded `stems` list and input directory for another molecule
+set.
+
+For constitutionally identical pairs, `stereoisomer_pairs.csv` reports the
+mapped centres that are retained and inverted. It labels a mixture of retained
+and inverted centres as `diastereomers`; inversion of every mapped centre is
+reported conservatively as `enantiomer_candidate`. Classification requires an
+unambiguous graph mapping selected by unique, stable atom names. The workflow
+stops rather than guessing when symmetry leaves that mapping ambiguous.
+
+`stereochemistry_audit.csv` contains one row per assigned tetrahedral centre.
+For every centre whose configuration changes, it reports whether the centre
+and all of its neighbours remained in the MCS and whether the endpoint RTF has
+a center-first `IMPR` record. It resolves that record's atom types against the
+endpoint PRM and records the force constant and target angle. Preparation fails
+by default if the full local stereochemical environment remains in the core,
+an improper or its parameter is missing, the parameter is ambiguous, the force
+constant is not positive, or its target lies within 5 degrees of a planar
+0/180-degree geometry. The reports are written before the exception so they
+can be inspected to correct the inputs.
+
+For diagnostic comparisons only, the improper check can be relaxed with
+`MCSS_RDecomp(..., require_stereo_impropers=False)`. This does not make the
+result safe for dynamics and must not be used for production preparation.
 
 ### 3. Inspect the core and endpoint fragments
 
 Do not accept the output solely because the program completed. Check
-`core_names.csv`, `MCS_for_MSLD.txt`, and the generated
+`stereoisomer_pairs.csv`, `stereochemistry_audit.csv`, `core_names.csv`,
+`MCS_for_MSLD.txt`, and the generated
 `site*_sub*_pres.rtf` files.
 
 For every stereocentre that differs between endpoints:
@@ -223,6 +247,10 @@ The production `msld_mcs_rdecomp.py` now:
 - uses `matchChiralTag=True` in the MCS;
 - uses the MCS query molecule directly and requires chirality in substructure
   matching and R-group decomposition; and
+- classifies connectivity-identical pairs using a stable atom-name mapping,
+  writes stereochemical pair/centre audit CSV files, and requires a
+  center-first endpoint improper with an active, non-planar parameter at each
+  changing centre; and
 - fails explicitly when decomposition returns neither groups nor unmatched
   molecules, instead of indexing a missing `Core` result.
 
