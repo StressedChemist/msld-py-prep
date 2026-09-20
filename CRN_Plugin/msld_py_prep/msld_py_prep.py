@@ -6,7 +6,7 @@
 ####
 
 import msld_chk
-import msld_mcs
+import msld_mcs_rdecomp
 import msld_crn
 import msld_prm
 import msld_wrt
@@ -57,7 +57,7 @@ if len(glob.glob(mcsout)) == 0:
     ## cutoff = RMSD & distance cutoff to differentiate different atoms
     ## change debug to True to get more stdout printed 
     
-    reflig = msld_mcs.MsldMCS(molfile,mcsout,cutoff=0.8,debug=False)
+    reflig = msld_mcs_rdecomp.MCSS_RDecomp(molfile,mcsout)
     print("MCS results printed to "+mcsout)
     print("Reference Ligand is "+reflig)
     quit()
@@ -84,4 +84,3 @@ print("default TOPPAR parameters copied into build."+sysname+". Check to make su
 
 
 ## FINISHED
-

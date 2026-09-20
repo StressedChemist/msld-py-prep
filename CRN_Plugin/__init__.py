@@ -507,7 +507,7 @@ def make_dialog():
 
     def run_mcss():
         from .msld_py_prep import msld_chk
-        from .msld_py_prep import msld_mcs
+        from .msld_py_prep import msld_mcs_rdecomp
         from .msld_py_prep import vis_check
         import glob
         
@@ -594,7 +594,7 @@ def make_dialog():
             msld_chk.MsldCHK(molfile)
             print("chk finished")
             os.chdir(savedir)
-            reflig = msld_mcs.MsldMCS(molfile,mcsout,cutoff=0.8,debug=False)
+            reflig = msld_mcs_rdecomp.MCSS_RDecomp(molfile,mcsout=mcsout)
             if not reflig:
                 return None
             print("MCS results printed to "+os.path.join(savedir,mcsout))
